@@ -136,9 +136,13 @@ describe RedHillConsulting::Core::ActiveRecord::ConnectionAdapters::PostgresqlAd
       def self.up
         create_table :users do |t|
           t.string :username, :state
+          t.string :first_name, :last_name, :null => false, :default => ""
+          t.float :lat, :lng, :default => 1.0, :null => false
         end
 
-        add_index :users, :expression => "gin (to_tsvector('english', username))", :name => "index_users_full_text"
+        add_index :users, :expression => "USING gin (to_tsvector('english', username))", :name => "index_users_full_text"
+        add_index :users, [:first_name, :last_name], :expression => "LOWER(first_name || ' ' || last_name)", :name => "index_users_on_full_name"
+        add_index :users, :expression => "((sin(lat) * cos(lng)))", :name => "index_users_on_something"
       end
 
       def self.down
@@ -149,9 +153,11 @@ describe RedHillConsulting::Core::ActiveRecord::ConnectionAdapters::PostgresqlAd
 
   it "should parse conditional index and report conditions" do
     indexes = User.indexes
-    indexes.length.should == 1
+    indexes.length.should == 3
 
-    index = indexes.first
+    index = indexes.detect {|idx| idx.name == "index_users_full_text"}
+    index.should_not be_nil
+
     index.unique.should == false
     index.should be_case_sensitive
     index.columns.should be_nil
